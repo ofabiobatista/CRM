@@ -21,7 +21,7 @@ export default function Contacts({ contacts, onAdd, onUpdate, onDelete }) {
   });
 
   function openAdd() { setForm(emptyForm); setModal("add"); }
-  function openEdit(c) { setForm({ ...c, tags: (c.tags || []).join(", ") }); setModal(c); }
+  function openEdit(c) { setForm({ ...c, tags: Array.isArray(c.tags) ? c.tags.join(", ") : "" }); setModal(c); }
 
   function handleSubmit(e) {
     e.preventDefault();

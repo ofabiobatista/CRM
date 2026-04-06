@@ -22,7 +22,7 @@ export default function Activities({ activities, contacts, deals, onAdd, onUpdat
 
   function handleSubmit(e) {
     e.preventDefault();
-    const data = { ...form, contactId: form.contactId ? Number(form.contactId) : null, dealId: form.dealId ? Number(form.dealId) : null };
+    const data = { ...form, contactId: form.contactId || null, dealId: form.dealId || null };
     if (modal === "add") onAdd(data); else onUpdate(modal.id, data);
     setModal(null);
   }

@@ -29,11 +29,16 @@ export default function App() {
 
   useEffect(() => {
     async function load() {
-      const [c, d, a] = await Promise.all([store.getContacts(), store.getDeals(), store.getActivities()]);
-      setContacts(c);
-      setDeals(d);
-      setActivities(a);
-      setLoading(false);
+      try {
+        const [c, d, a] = await Promise.all([store.getContacts(), store.getDeals(), store.getActivities()]);
+        setContacts(c);
+        setDeals(d);
+        setActivities(a);
+      } catch (err) {
+        console.error("Erro ao carregar dados:", err);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
     refreshLeadBadge();

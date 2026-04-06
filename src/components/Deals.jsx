@@ -23,7 +23,7 @@ export default function Deals({ deals, contacts, onAdd, onUpdate, onDelete }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    const data = { ...form, value: Number(form.value), probability: Number(form.probability), contactId: Number(form.contactId) };
+    const data = { ...form, value: Number(form.value), probability: Number(form.probability), contactId: form.contactId || null };
     if (modal === "add") onAdd(data); else onUpdate(modal.id, data);
     setModal(null);
   }

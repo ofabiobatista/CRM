@@ -34,9 +34,14 @@ export default function Atendimento({ contacts }) {
 
   async function load() {
     setLoading(true);
-    const data = await store.getTickets();
-    setTickets(data);
-    setLoading(false);
+    try {
+      const data = await store.getTickets();
+      setTickets(data);
+    } catch (err) {
+      console.error("Erro ao carregar tickets:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function openAdd(status = "novo") { setForm({ ...emptyForm, status }); setModal("add"); }

@@ -13,9 +13,14 @@ export default function Leads({ onAddContact, onBadgeChange }) {
 
   async function load() {
     setLoading(true);
-    const data = await store.getLeads();
-    setLeads(data);
-    setLoading(false);
+    try {
+      const data = await store.getLeads();
+      setLeads(data);
+    } catch (err) {
+      console.error("Erro ao carregar leads:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function markRead(id, val) {

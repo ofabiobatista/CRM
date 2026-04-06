@@ -42,7 +42,11 @@ export async function addDeal(deal) {
 }
 
 export async function updateDeal(id, updates) {
-  await supabase.from("deals").update(toDeal({ ...updates, id })).eq("id", id);
+  const { id: _id, contactId, closingDate, ...rest } = updates;
+  const payload = { ...rest };
+  if (contactId !== undefined) payload.contact_id = contactId || null;
+  if (closingDate !== undefined) payload.closing_date = closingDate || null;
+  await supabase.from("deals").update(payload).eq("id", id);
 }
 
 export async function deleteDeal(id) {
@@ -61,7 +65,11 @@ export async function addActivity(activity) {
 }
 
 export async function updateActivity(id, updates) {
-  await supabase.from("activities").update(toActivity({ ...updates, id })).eq("id", id);
+  const { id: _id, contactId, dealId, ...rest } = updates;
+  const payload = { ...rest };
+  if (contactId !== undefined) payload.contact_id = contactId || null;
+  if (dealId !== undefined) payload.deal_id = dealId || null;
+  await supabase.from("activities").update(payload).eq("id", id);
 }
 
 export async function deleteActivity(id) {
