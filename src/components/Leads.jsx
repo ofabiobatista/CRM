@@ -1,35 +1,40 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, UserPlus, Trash2, Mail, Phone, Building, Tag, Eye, EyeOff } from "lucide-react";
+import * as store from "../data/store";
 
-function loadLeads() {
-  try { return JSON.parse(localStorage.getItem("crm_leads") || "[]"); } catch { return []; }
-}
-
-export default function Leads({ onAddContact }) {
-  const [leads, setLeads] = useState(loadLeads);
+export default function Leads({ onAddContact, onBadgeChange }) {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [filterLido, setFilterLido] = useState("todos");
 
-  function refresh() { setLeads(loadLeads()); }
+  useEffect(() => { load(); }, []);
 
-  function markRead(id, val) {
-    const updated = leads.map(l => l.id === id ? { ...l, lido: val } : l);
-    setLeads(updated);
-    localStorage.setItem("crm_leads", JSON.stringify(updated));
-    if (selected?.id === id) setSelected({ ...selected, lido: val });
+  async function load() {
+    setLoading(true);
+    const data = await store.getLeads();
+    setLeads(data);
+    setLoading(false);
   }
 
-  function deleteLead(id) {
-    const updated = leads.filter(l => l.id !== id);
-    setLeads(updated);
-    localStorage.setItem("crm_leads", JSON.stringify(updated));
+  async function markRead(id, val) {
+    await store.updateLead(id, { lido: val });
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, lido: val } : l));
+    if (selected?.id === id) setSelected(prev => ({ ...prev, lido: val }));
+    onBadgeChange?.();
+  }
+
+  async function handleDelete(id) {
+    await store.deleteLead(id);
+    setLeads(prev => prev.filter(l => l.id !== id));
     setConfirmDelete(null);
     if (selected?.id === id) setSelected(null);
+    onBadgeChange?.();
   }
 
-  function convertToContact(lead) {
-    onAddContact({
+  async function convertToContact(lead) {
+    await onAddContact({
       name: lead.nome,
       email: lead.email,
       phone: lead.telefone,
@@ -37,14 +42,13 @@ export default function Leads({ onAddContact }) {
       status: "lead",
       tags: [lead.servico].filter(Boolean),
     });
-    markRead(lead.id, true);
+    await markRead(lead.id, true);
     alert(`✅ "${lead.nome}" adicionado como contato no CRM!`);
   }
 
   const filtered = leads.filter(l =>
     filterLido === "todos" ? true : filterLido === "nao_lidos" ? !l.lido : l.lido
   );
-
   const naoLidos = leads.filter(l => !l.lido).length;
 
   return (
@@ -63,16 +67,17 @@ export default function Leads({ onAddContact }) {
               <button key={v} className={`pill ${filterLido === v ? "active" : ""}`} onClick={() => setFilterLido(v)}>{l}</button>
             ))}
           </div>
-          <button className="btn btn-secondary" onClick={refresh}><RefreshCw size={15} /> Atualizar</button>
+          <button className="btn btn-secondary" onClick={load}><RefreshCw size={15} /> Atualizar</button>
         </div>
       </div>
 
-      {leads.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "#9ca3af" }}>Carregando leads...</div>
+      ) : leads.length === 0 ? (
         <div className="leads-empty">
           <div style={{ fontSize: 40, marginBottom: 12 }}>📥</div>
           <h3>Nenhum lead ainda</h3>
           <p>Quando alguém preencher o formulário na landing page da Candeeiro, o lead aparecerá aqui automaticamente.</p>
-          <p style={{ marginTop: 8, fontSize: 12, opacity: 0.6 }}>Os dados são compartilhados via localStorage — landing page e CRM precisam estar abertos no mesmo navegador.</p>
         </div>
       ) : (
         <div className="leads-layout">
@@ -109,21 +114,18 @@ export default function Leads({ onAddContact }) {
                   <div style={{ fontSize: 12, color: "#9ca3af" }}>{selected.origem} · {selected.data}</div>
                 </div>
               </div>
-
               <div className="lead-detail-fields">
                 {selected.email && <div className="lead-field"><Mail size={14} /><a href={`mailto:${selected.email}`}>{selected.email}</a></div>}
                 {selected.telefone && <div className="lead-field"><Phone size={14} /><a href={`tel:${selected.telefone}`}>{selected.telefone}</a></div>}
                 {selected.empresa && <div className="lead-field"><Building size={14} />{selected.empresa}</div>}
                 {selected.servico && <div className="lead-field"><Tag size={14} />{selected.servico}</div>}
               </div>
-
               {selected.mensagem && (
                 <div className="lead-message">
                   <div style={{ fontSize: 11, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Mensagem</div>
                   <p>{selected.mensagem}</p>
                 </div>
               )}
-
               <div className="lead-actions">
                 <button className="btn btn-secondary" onClick={() => markRead(selected.id, !selected.lido)}>
                   {selected.lido ? <><EyeOff size={14} /> Marcar não lido</> : <><Eye size={14} /> Marcar como lido</>}
@@ -154,7 +156,7 @@ export default function Leads({ onAddContact }) {
             <p>Deseja excluir o lead de <strong>{confirmDelete.nome}</strong>?</p>
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</button>
-              <button className="btn btn-danger" onClick={() => deleteLead(confirmDelete.id)}>Excluir</button>
+              <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>Excluir</button>
             </div>
           </div>
         </div>

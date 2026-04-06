@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { LayoutDashboard, Users, TrendingUp, Calendar, Headphones, Inbox, Menu, X } from "lucide-react";
 import Dashboard from "./components/Dashboard";
 import Contacts from "./components/Contacts";
@@ -20,25 +20,72 @@ const nav = [
 
 export default function App() {
   const [page, setPage] = useState("dashboard");
-  const [contacts, setContacts] = useState(store.getContacts());
-  const [deals, setDeals] = useState(store.getDeals());
-  const [activities, setActivities] = useState(store.getActivities());
+  const [contacts, setContacts] = useState([]);
+  const [deals, setDeals] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [unreadLeads, setUnreadLeads] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    async function load() {
+      const [c, d, a] = await Promise.all([store.getContacts(), store.getDeals(), store.getActivities()]);
+      setContacts(c);
+      setDeals(d);
+      setActivities(a);
+      setLoading(false);
+    }
+    load();
+    refreshLeadBadge();
+  }, []);
+
+  async function refreshLeadBadge() {
+    const leads = await store.getLeads();
+    setUnreadLeads(leads.filter(l => !l.lido).length);
+  }
+
   const handlers = {
-    addContact: useCallback((d) => setContacts(store.addContact(d)), []),
-    updateContact: useCallback((id, d) => setContacts(store.updateContact(id, d)), []),
-    deleteContact: useCallback((id) => { store.deleteContact(id); setContacts(store.getContacts()); setDeals(store.getDeals()); setActivities(store.getActivities()); }, []),
-    addDeal: useCallback((d) => setDeals(store.addDeal(d)), []),
-    updateDeal: useCallback((id, d) => setDeals(store.updateDeal(id, d)), []),
-    deleteDeal: useCallback((id) => { store.deleteDeal(id); setDeals(store.getDeals()); }, []),
-    addActivity: useCallback((d) => setActivities(store.addActivity(d)), []),
-    updateActivity: useCallback((id, d) => setActivities(store.updateActivity(id, d)), []),
-    deleteActivity: useCallback((id) => { store.deleteActivity(id); setActivities(store.getActivities()); }, []),
+    addContact: async (data) => {
+      const c = await store.addContact(data);
+      setContacts(prev => [c, ...prev]);
+    },
+    updateContact: async (id, data) => {
+      await store.updateContact(id, data);
+      setContacts(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+    },
+    deleteContact: async (id) => {
+      await store.deleteContact(id);
+      setContacts(prev => prev.filter(c => c.id !== id));
+      setDeals(prev => prev.filter(d => d.contactId !== id));
+      setActivities(prev => prev.filter(a => a.contactId !== id));
+    },
+    addDeal: async (data) => {
+      const d = await store.addDeal(data);
+      setDeals(prev => [d, ...prev]);
+    },
+    updateDeal: async (id, data) => {
+      await store.updateDeal(id, data);
+      setDeals(prev => prev.map(d => d.id === id ? { ...d, ...data } : d));
+    },
+    deleteDeal: async (id) => {
+      await store.deleteDeal(id);
+      setDeals(prev => prev.filter(d => d.id !== id));
+    },
+    addActivity: async (data) => {
+      const a = await store.addActivity(data);
+      setActivities(prev => [a, ...prev]);
+    },
+    updateActivity: async (id, data) => {
+      await store.updateActivity(id, data);
+      setActivities(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
+    },
+    deleteActivity: async (id) => {
+      await store.deleteActivity(id);
+      setActivities(prev => prev.filter(a => a.id !== id));
+    },
   };
 
   const pendingActs = activities.filter(a => !a.done).length;
-  const unreadLeads = (() => { try { return JSON.parse(localStorage.getItem("crm_leads") || "[]").filter(l => !l.lido).length; } catch { return 0; } })();
 
   function navigate(key) { setPage(key); setSidebarOpen(false); }
 
@@ -78,12 +125,21 @@ export default function App() {
         </header>
 
         <main className="content">
-          {page === "dashboard" && <Dashboard contacts={contacts} deals={deals} activities={activities} />}
-          {page === "contacts" && <Contacts contacts={contacts} onAdd={handlers.addContact} onUpdate={handlers.updateContact} onDelete={handlers.deleteContact} />}
-          {page === "deals" && <Deals deals={deals} contacts={contacts} onAdd={handlers.addDeal} onUpdate={handlers.updateDeal} onDelete={handlers.deleteDeal} />}
-          {page === "activities" && <Activities activities={activities} contacts={contacts} deals={deals} onAdd={handlers.addActivity} onUpdate={handlers.updateActivity} onDelete={handlers.deleteActivity} />}
-          {page === "atendimento" && <Atendimento contacts={contacts} />}
-          {page === "leads" && <Leads onAddContact={handlers.addContact} />}
+          {loading ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 12, color: "#6b7280" }}>
+              <div style={{ width: 32, height: 32, border: "3px solid #e5e7eb", borderTopColor: "#6366f1", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <span>Carregando...</span>
+            </div>
+          ) : (
+            <>
+              {page === "dashboard" && <Dashboard contacts={contacts} deals={deals} activities={activities} />}
+              {page === "contacts" && <Contacts contacts={contacts} onAdd={handlers.addContact} onUpdate={handlers.updateContact} onDelete={handlers.deleteContact} />}
+              {page === "deals" && <Deals deals={deals} contacts={contacts} onAdd={handlers.addDeal} onUpdate={handlers.updateDeal} onDelete={handlers.deleteDeal} />}
+              {page === "activities" && <Activities activities={activities} contacts={contacts} deals={deals} onAdd={handlers.addActivity} onUpdate={handlers.updateActivity} onDelete={handlers.deleteActivity} />}
+              {page === "atendimento" && <Atendimento contacts={contacts} />}
+              {page === "leads" && <Leads onAddContact={handlers.addContact} onBadgeChange={refreshLeadBadge} />}
+            </>
+          )}
         </main>
       </div>
     </div>

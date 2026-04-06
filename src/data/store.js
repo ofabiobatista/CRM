@@ -1,95 +1,115 @@
-// Simple in-memory store with localStorage persistence
+import { supabase } from "../lib/supabase";
 
-const defaultData = {
-  contacts: [
-    { id: 1, name: "Ana Souza", email: "ana@empresa.com.br", phone: "(11) 99123-4567", company: "Tech Solutions", status: "cliente", tags: ["vip"], createdAt: "2026-01-15" },
-    { id: 2, name: "Carlos Lima", email: "carlos@startup.io", phone: "(21) 98765-4321", company: "Startup IO", status: "lead", tags: ["novo"], createdAt: "2026-02-01" },
-    { id: 3, name: "Fernanda Rocha", email: "f.rocha@corp.com", phone: "(31) 97654-3210", company: "Corp LTDA", status: "prospect", tags: [], createdAt: "2026-02-20" },
-  ],
-  deals: [
-    { id: 1, title: "Plano Enterprise", contactId: 1, value: 15000, stage: "fechado", probability: 100, closingDate: "2026-03-10", notes: "Contrato assinado" },
-    { id: 2, title: "Implantação CRM", contactId: 2, value: 8500, stage: "negociacao", probability: 60, closingDate: "2026-04-15", notes: "Aguardando aprovação interna" },
-    { id: 3, title: "Consultoria Mensal", contactId: 3, value: 3200, stage: "proposta", probability: 40, closingDate: "2026-04-30", notes: "Enviada proposta por email" },
-  ],
-  activities: [
-    { id: 1, type: "ligacao", contactId: 1, dealId: 1, description: "Ligação de follow-up sobre renovação", date: "2026-03-18", done: true },
-    { id: 2, type: "email", contactId: 2, dealId: 2, description: "Envio de proposta comercial", date: "2026-03-19", done: true },
-    { id: 3, type: "reuniao", contactId: 3, dealId: 3, description: "Reunião de apresentação do produto", date: "2026-03-22", done: false },
-    { id: 4, type: "tarefa", contactId: 2, dealId: null, description: "Preparar material de onboarding", date: "2026-03-25", done: false },
-  ],
-};
+// Mappers DB → App
+const mapContact = ({ created_at, ...r }) => ({ ...r, createdAt: created_at });
+const mapDeal = ({ contact_id, closing_date, ...r }) => ({ ...r, contactId: contact_id, closingDate: closing_date });
+const mapActivity = ({ contact_id, deal_id, ...r }) => ({ ...r, contactId: contact_id, dealId: deal_id });
 
-function load() {
-  try {
-    const saved = localStorage.getItem("crm_data");
-    return saved ? JSON.parse(saved) : defaultData;
-  } catch {
-    return defaultData;
-  }
+// Mappers App → DB
+const toContact = ({ id, createdAt, ...r }) => r;
+const toDeal = ({ id, contactId, closingDate, ...r }) => ({ ...r, contact_id: contactId || null, closing_date: closingDate || null });
+const toActivity = ({ id, contactId, dealId, ...r }) => ({ ...r, contact_id: contactId || null, deal_id: dealId || null });
+
+// --- Contacts ---
+export async function getContacts() {
+  const { data } = await supabase.from("contacts").select("*").order("created_at", { ascending: false });
+  return (data || []).map(mapContact);
 }
 
-function save(data) {
-  localStorage.setItem("crm_data", JSON.stringify(data));
+export async function addContact(contact) {
+  const { data } = await supabase.from("contacts").insert([toContact(contact)]).select().single();
+  return mapContact(data);
 }
 
-let state = load();
-
-export function getContacts() { return state.contacts; }
-export function getDeals() { return state.deals; }
-export function getActivities() { return state.activities; }
-
-export function addContact(contact) {
-  const id = Date.now();
-  state.contacts = [...state.contacts, { ...contact, id, createdAt: new Date().toISOString().split("T")[0] }];
-  save(state);
-  return state.contacts;
+export async function updateContact(id, updates) {
+  const { createdAt, ...rest } = updates;
+  await supabase.from("contacts").update(rest).eq("id", id);
 }
 
-export function updateContact(id, updates) {
-  state.contacts = state.contacts.map(c => c.id === id ? { ...c, ...updates } : c);
-  save(state);
-  return state.contacts;
+export async function deleteContact(id) {
+  await supabase.from("contacts").delete().eq("id", id);
 }
 
-export function deleteContact(id) {
-  state.contacts = state.contacts.filter(c => c.id !== id);
-  state.deals = state.deals.filter(d => d.contactId !== id);
-  state.activities = state.activities.filter(a => a.contactId !== id);
-  save(state);
+// --- Deals ---
+export async function getDeals() {
+  const { data } = await supabase.from("deals").select("*").order("id", { ascending: false });
+  return (data || []).map(mapDeal);
 }
 
-export function addDeal(deal) {
-  const id = Date.now();
-  state.deals = [...state.deals, { ...deal, id }];
-  save(state);
-  return state.deals;
+export async function addDeal(deal) {
+  const { data } = await supabase.from("deals").insert([toDeal(deal)]).select().single();
+  return mapDeal(data);
 }
 
-export function updateDeal(id, updates) {
-  state.deals = state.deals.map(d => d.id === id ? { ...d, ...updates } : d);
-  save(state);
-  return state.deals;
+export async function updateDeal(id, updates) {
+  await supabase.from("deals").update(toDeal({ ...updates, id })).eq("id", id);
 }
 
-export function deleteDeal(id) {
-  state.deals = state.deals.filter(d => d.id !== id);
-  save(state);
+export async function deleteDeal(id) {
+  await supabase.from("deals").delete().eq("id", id);
 }
 
-export function addActivity(activity) {
-  const id = Date.now();
-  state.activities = [...state.activities, { ...activity, id }];
-  save(state);
-  return state.activities;
+// --- Activities ---
+export async function getActivities() {
+  const { data } = await supabase.from("activities").select("*").order("date", { ascending: false });
+  return (data || []).map(mapActivity);
 }
 
-export function updateActivity(id, updates) {
-  state.activities = state.activities.map(a => a.id === id ? { ...a, ...updates } : a);
-  save(state);
-  return state.activities;
+export async function addActivity(activity) {
+  const { data } = await supabase.from("activities").insert([toActivity(activity)]).select().single();
+  return mapActivity(data);
 }
 
-export function deleteActivity(id) {
-  state.activities = state.activities.filter(a => a.id !== id);
-  save(state);
+export async function updateActivity(id, updates) {
+  await supabase.from("activities").update(toActivity({ ...updates, id })).eq("id", id);
+}
+
+export async function deleteActivity(id) {
+  await supabase.from("activities").delete().eq("id", id);
+}
+
+// --- Tickets ---
+const mapTicket = ({ contact_id, created_at, updated_at, ...r }) => ({
+  ...r, contactId: contact_id, createdAt: created_at, updatedAt: updated_at,
+});
+const toTicket = ({ id, contactId, createdAt, updatedAt, ...r }) => ({
+  ...r, contact_id: contactId || null,
+});
+
+export async function getTickets() {
+  const { data } = await supabase.from("tickets").select("*").order("created_at", { ascending: false });
+  return (data || []).map(mapTicket);
+}
+
+export async function addTicket(ticket) {
+  const { data } = await supabase.from("tickets").insert([toTicket(ticket)]).select().single();
+  return mapTicket(data);
+}
+
+export async function updateTicket(id, updates) {
+  const today = new Date().toISOString().split("T")[0];
+  await supabase.from("tickets").update({ ...toTicket({ ...updates, id }), updated_at: today }).eq("id", id);
+}
+
+export async function deleteTicket(id) {
+  await supabase.from("tickets").delete().eq("id", id);
+}
+
+// --- Leads ---
+export async function getLeads() {
+  const { data } = await supabase.from("leads").select("*").order("data", { ascending: false });
+  return data || [];
+}
+
+export async function addLead(lead) {
+  const { data } = await supabase.from("leads").insert([lead]).select().single();
+  return data;
+}
+
+export async function updateLead(id, updates) {
+  await supabase.from("leads").update(updates).eq("id", id);
+}
+
+export async function deleteLead(id) {
+  await supabase.from("leads").delete().eq("id", id);
 }

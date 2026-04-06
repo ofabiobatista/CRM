@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Plus, Edit2, Trash2, X, Check, MessageSquare, Clock, AlertCircle, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Edit2, Trash2, X, Check, AlertCircle, User } from "lucide-react";
+import * as store from "../data/store";
 
 const columns = [
   { key: "novo", label: "Novo", color: "#6366f1", bg: "#ede9fe" },
@@ -17,51 +18,55 @@ const priorities = [
 ];
 
 const categories = ["Suporte Técnico", "Dúvida Comercial", "Reclamação", "Financeiro", "Onboarding", "Outro"];
-
-const defaultTickets = [
-  { id: 1, title: "Erro ao acessar o painel", contactId: 1, category: "Suporte Técnico", priority: "alta", status: "em_atendimento", assignee: "Marcos", description: "Cliente relata erro 500 ao tentar acessar o dashboard principal.", createdAt: "2026-03-19", updatedAt: "2026-03-20" },
-  { id: 2, title: "Dúvida sobre plano Enterprise", contactId: 2, category: "Dúvida Comercial", priority: "media", status: "novo", assignee: "", description: "Quer entender as diferenças entre os planos Pro e Enterprise.", createdAt: "2026-03-20", updatedAt: "2026-03-20" },
-  { id: 3, title: "NF não chegou por email", contactId: 3, category: "Financeiro", priority: "media", status: "aguardando", assignee: "Julia", description: "Nota fiscal referente a fevereiro não foi recebida.", createdAt: "2026-03-18", updatedAt: "2026-03-21" },
-  { id: 4, title: "Configuração de integração API", contactId: 1, category: "Suporte Técnico", priority: "urgente", status: "novo", assignee: "", description: "Precisa de suporte para configurar webhook de retorno.", createdAt: "2026-03-21", updatedAt: "2026-03-21" },
-  { id: 5, title: "Usuário bloqueado no sistema", contactId: 2, category: "Suporte Técnico", priority: "alta", status: "resolvido", assignee: "Marcos", description: "Usuário admin perdeu acesso após mudança de senha.", createdAt: "2026-03-17", updatedAt: "2026-03-19" },
-];
-
-function loadTickets() {
-  try { return JSON.parse(localStorage.getItem("crm_tickets") || "null") || defaultTickets; } catch { return defaultTickets; }
-}
-function saveTickets(t) { localStorage.setItem("crm_tickets", JSON.stringify(t)); }
-
 const emptyForm = { title: "", contactId: "", category: "Suporte Técnico", priority: "media", status: "novo", assignee: "", description: "" };
 
 export default function Atendimento({ contacts }) {
-  const [tickets, setTickets] = useState(loadTickets);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [detailTicket, setDetailTicket] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [filterPriority, setFilterPriority] = useState("");
-  const [drag, setDrag] = useState(null); // { ticketId }
+  const [drag, setDrag] = useState(null);
 
-  function persist(updated) { setTickets(updated); saveTickets(updated); }
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const data = await store.getTickets();
+    setTickets(data);
+    setLoading(false);
+  }
 
   function openAdd(status = "novo") { setForm({ ...emptyForm, status }); setModal("add"); }
   function openEdit(t) { setForm({ ...t, contactId: String(t.contactId || "") }); setModal(t); setDetailTicket(null); }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    const now = new Date().toISOString().split("T")[0];
-    const data = { ...form, contactId: form.contactId ? Number(form.contactId) : null };
+    const today = new Date().toISOString().split("T")[0];
+    const data = { ...form, contactId: form.contactId || null };
     if (modal === "add") {
-      persist([...tickets, { ...data, id: Date.now(), createdAt: now, updatedAt: now }]);
+      const ticket = await store.addTicket({ ...data, createdAt: today, updatedAt: today });
+      setTickets(prev => [ticket, ...prev]);
     } else {
-      persist(tickets.map(t => t.id === modal.id ? { ...t, ...data, updatedAt: now } : t));
+      await store.updateTicket(modal.id, { ...data, updatedAt: today });
+      setTickets(prev => prev.map(t => t.id === modal.id ? { ...t, ...data, updatedAt: today } : t));
     }
     setModal(null);
   }
 
-  function moveTicket(ticketId, newStatus) {
-    const now = new Date().toISOString().split("T")[0];
-    persist(tickets.map(t => t.id === ticketId ? { ...t, status: newStatus, updatedAt: now } : t));
+  async function moveTicket(ticketId, newStatus) {
+    const today = new Date().toISOString().split("T")[0];
+    await store.updateTicket(ticketId, { status: newStatus, updatedAt: today });
+    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: newStatus, updatedAt: today } : t));
+  }
+
+  async function handleDelete(id) {
+    await store.deleteTicket(id);
+    setTickets(prev => prev.filter(t => t.id !== id));
+    setConfirmDelete(null);
+    setDetailTicket(null);
   }
 
   function handleDragStart(e, ticketId) { setDrag({ ticketId }); e.dataTransfer.effectAllowed = "move"; }
@@ -80,12 +85,7 @@ export default function Atendimento({ contacts }) {
   const TicketCard = ({ ticket }) => {
     const contact = contacts.find(c => c.id === ticket.contactId);
     return (
-      <div
-        className="ticket-card"
-        draggable
-        onDragStart={e => handleDragStart(e, ticket.id)}
-        onClick={() => setDetailTicket(ticket)}
-      >
+      <div className="ticket-card" draggable onDragStart={e => handleDragStart(e, ticket.id)} onClick={() => setDetailTicket(ticket)}>
         <div className="ticket-card-top">
           <PriorityBadge p={ticket.priority} />
           <span className="ticket-category">{ticket.category}</span>
@@ -102,6 +102,12 @@ export default function Atendimento({ contacts }) {
       </div>
     );
   };
+
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "#9ca3af" }}>
+      Carregando tickets...
+    </div>
+  );
 
   return (
     <div className="page atendimento-page">
@@ -130,12 +136,7 @@ export default function Atendimento({ contacts }) {
         {columns.map(col => {
           const colTickets = filtered.filter(t => t.status === col.key);
           return (
-            <div
-              key={col.key}
-              className="atend-col"
-              onDragOver={handleDragOver}
-              onDrop={e => handleDrop(e, col.key)}
-            >
+            <div key={col.key} className="atend-col" onDragOver={handleDragOver} onDrop={e => handleDrop(e, col.key)}>
               <div className="atend-col-header" style={{ borderTopColor: col.color }}>
                 <div className="atend-col-title">
                   <span style={{ color: col.color }}>{col.label}</span>
@@ -151,7 +152,6 @@ export default function Atendimento({ contacts }) {
         })}
       </div>
 
-      {/* Detail modal */}
       {detailTicket && (() => {
         const t = tickets.find(x => x.id === detailTicket.id) || detailTicket;
         const contact = contacts.find(c => c.id === t.contactId);
@@ -199,7 +199,6 @@ export default function Atendimento({ contacts }) {
         );
       })()}
 
-      {/* Add/Edit modal */}
       {modal && (
         <div className="modal-backdrop" onClick={() => setModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -254,7 +253,7 @@ export default function Atendimento({ contacts }) {
             <p>Deseja excluir o ticket <strong>{confirmDelete.title}</strong>?</p>
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</button>
-              <button className="btn btn-danger" onClick={() => { persist(tickets.filter(t => t.id !== confirmDelete.id)); setConfirmDelete(null); setDetailTicket(null); }}>Excluir</button>
+              <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>Excluir</button>
             </div>
           </div>
         </div>
