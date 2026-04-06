@@ -11,11 +11,11 @@ import "./App.css";
 
 const nav = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "deals", label: "Pipeline", icon: TrendingUp },
   { key: "contacts", label: "Contatos", icon: Users },
-  { key: "deals", label: "Negócios", icon: TrendingUp },
-  { key: "activities", label: "Atividades", icon: Calendar },
-  { key: "atendimento", label: "Atendimento", icon: Headphones },
-  { key: "leads", label: "Leads", icon: Inbox },
+  { divider: true, label: "Gerenciadores" },
+  { key: "meta", label: "Meta Ads", icon: null, external: "https://business.facebook.com" },
+  { key: "google", label: "Google Ads", icon: null, external: "https://ads.google.com" },
 ];
 
 export default function App() {
@@ -104,14 +104,29 @@ export default function App() {
           <span className="logo-text">MeuCRM</span>
         </div>
         <nav className="sidebar-nav">
-          {nav.map(({ key, label, icon: Icon }) => (
-            <button key={key} className={`nav-item ${page === key ? "active" : ""}`} onClick={() => navigate(key)}>
-              <Icon size={18} />
-              <span>{label}</span>
-              {key === "activities" && pendingActs > 0 && <span className="nav-badge">{pendingActs}</span>}
-              {key === "leads" && unreadLeads > 0 && <span className="nav-badge">{unreadLeads}</span>}
-            </button>
-          ))}
+          {nav.map((item, i) => {
+            if (item.divider) return (
+              <div key={i} className="nav-divider">
+                <span>{item.label}</span>
+              </div>
+            );
+            const { key, label, icon: Icon, external } = item;
+            if (external) return (
+              <a key={key} href={external} target="_blank" rel="noreferrer" className="nav-item nav-external">
+                <span className={`nav-ext-icon nav-ext-${key}`} />
+                <span>{label}</span>
+                <svg className="nav-ext-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M10 2H4M10 2V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </a>
+            );
+            return (
+              <button key={key} className={`nav-item ${page === key ? "active" : ""}`} onClick={() => navigate(key)}>
+                <Icon size={18} />
+                <span>{label}</span>
+                {key === "activities" && pendingActs > 0 && <span className="nav-badge">{pendingActs}</span>}
+                {key === "leads" && unreadLeads > 0 && <span className="nav-badge">{unreadLeads}</span>}
+              </button>
+            );
+          })}
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-stats">
