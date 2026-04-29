@@ -57,3 +57,30 @@ create table leads (
   lido boolean default false,
   data date default current_date
 );
+
+create table proposals (
+  id uuid default gen_random_uuid() primary key,
+  contact_id uuid references contacts(id) on delete set null,
+  client_name text not null,
+  company text not null,
+  niche text,
+  city text,
+  slug text unique not null,
+  status text default 'rascunho',
+  platforms text,
+  objective text,
+  media_budget numeric default 0,
+  agency_fee numeric default 0,
+  total numeric default 0,
+  total_contract numeric default 0,
+  contract_period text,
+  contract_months integer,
+  services jsonb default '[]',
+  expected_leads text,
+  expected_cpl text,
+  expected_roas text,
+  expected_cpa text,
+  url text,
+  created_at timestamptz default now(),
+  sent_at timestamptz
+);

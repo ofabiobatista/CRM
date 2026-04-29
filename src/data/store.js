@@ -103,6 +103,50 @@ export async function deleteTicket(id) {
   await supabase.from("tickets").delete().eq("id", id);
 }
 
+// --- Proposals ---
+const mapProposal = ({ contact_id, media_budget, agency_fee, total_contract, contract_period, contract_months, created_at, sent_at, ...r }) => ({
+  ...r,
+  contactId: contact_id,
+  mediaBudget: media_budget,
+  agencyFee: agency_fee,
+  totalContract: total_contract,
+  contractPeriod: contract_period,
+  contractMonths: contract_months,
+  createdAt: created_at,
+  sentAt: sent_at,
+});
+
+const toProposal = ({ id, contactId, mediaBudget, agencyFee, totalContract, contractPeriod, contractMonths, createdAt, sentAt, ...r }) => ({
+  ...r,
+  contact_id: contactId || null,
+  media_budget: mediaBudget,
+  agency_fee: agencyFee,
+  total_contract: totalContract,
+  contract_period: contractPeriod,
+  contract_months: contractMonths,
+  sent_at: sentAt || null,
+});
+
+export async function getProposals() {
+  const { data } = await supabase.from("proposals").select("*").order("created_at", { ascending: false });
+  return (data || []).map(mapProposal);
+}
+
+export async function addProposal(proposal) {
+  const { data } = await supabase.from("proposals").insert([toProposal(proposal)]).select().single();
+  return mapProposal(data);
+}
+
+export async function updateProposal(id, updates) {
+  const payload = toProposal({ ...updates, id });
+  delete payload.id;
+  await supabase.from("proposals").update(payload).eq("id", id);
+}
+
+export async function deleteProposal(id) {
+  await supabase.from("proposals").delete().eq("id", id);
+}
+
 // --- Leads ---
 export async function getLeads() {
   const { data } = await supabase.from("leads").select("*").order("data", { ascending: false });
